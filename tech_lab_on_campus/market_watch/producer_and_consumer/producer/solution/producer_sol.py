@@ -14,6 +14,11 @@
 
 import pika
 import os
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from producer_interface import mqProducerInterface
 
 
@@ -27,11 +32,11 @@ class mqProducer(mqProducerInterface):
             exchange_name: The name of the exchange to publish to
         """
         # Save parameters to class variables
-        # self.routing_key = routing_key
-        # self.exchange_name = exchange_name
+        self.routing_key = routing_key
+        self.exchange_name = exchange_name
         
         # Call setupRMQConnection
-        # self.setupRMQConnection()
+        self.setupRMQConnection()
 
     def setupRMQConnection(self) -> None:
         """
@@ -39,14 +44,14 @@ class mqProducer(mqProducerInterface):
         Establishes channel and creates exchange if not present.
         """
         # Set-up Connection to RabbitMQ service
-        # con_params = pika.URLParameters(os.environ["AMQP_URL"])
-        # self.connection = pika.BlockingConnection(parameters=con_params)
+        con_params = pika.URLParameters(os.environ["AMQP_URL"])
+        self.connection = pika.BlockingConnection(parameters=con_params)
         
         # Establish Channel
-        # self.channel = self.connection.channel()
+        self.channel = self.connection.channel()
         
         # Create the exchange if not already present
-        # self.channel.exchange_declare(exchange=self.exchange_name)
+        self.channel.exchange_declare(exchange=self.exchange_name, exchange_type='direct', durable=False)
 
     def publishOrder(self, message: str) -> None:
         """
@@ -56,14 +61,18 @@ class mqProducer(mqProducerInterface):
             message: The message string to publish
         """
         # Basic Publish to Exchange
-        # self.channel.basic_publish(
-        #     exchange=self.exchange_name,
-        #     routing_key=self.routing_key,
-        #     body=message,
-        # )
+        self.channel.basic_publish(
+            exchange=self.exchange_name,
+            routing_key=self.routing_key,
+            body=message.encode('utf-8'),
+        )
+        
+        # Give RabbitMQ a moment to route the message
+        import time
+        time.sleep(0.1)
         
         # Close Channel
-        # self.channel.close()
+        self.channel.close()
         
         # Close Connection
-        # self.connection.close()
+        self.connection.close()

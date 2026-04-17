@@ -20,28 +20,26 @@ from solution.producer_sol import mqProducer  # pylint: disable=import-error
 
 def main(ticker: str, price: float, sector: str) -> None:
     
-    # Implement Logic to Create Routing Key from the ticker and sector variable -  Step 2
-    #
-    #                       WRITE CODE HERE!!!
-    #
+    # Create Routing Key from the ticker and sector variable - Step 2
+    # Format: stock.TICKER.SECTOR
+    routing_key = f"stock.{ticker}.{sector}"
 
+    producer = mqProducer(routing_key=routing_key, exchange_name="Tech Lab Topic Exchange")
 
-    producer = mqProducer(routing_key=routingKey,exchange_name="Tech Lab Topic Exchange")
-
-
-    # Implement Logic To Create a message variable from the variable EG. "TSLA price is now $500" - Step 3
-    #
-    #                       WRITE CODE HERE!!!
-    #
-    
+    # Create a message variable from the variables EG. "TSLA price is now $500" - Step 3
+    message = f"{ticker} is ${price}"
     
     producer.publishOrder(message)
 
+
 if __name__ == "__main__":
 
-    # Implement Logic to read the ticker, price and sector string from the command line and save them - Step 1
-    #
-    #                       WRITE CODE HERE!!!
-    #
+    # Read the ticker, price and sector string from the command line and save them - Step 1
+    parser = argparse.ArgumentParser(description='Publish stock price updates to RabbitMQ topic exchange')
+    parser.add_argument('ticker', type=str, help='Stock ticker symbol (e.g., TSLA)')
+    parser.add_argument('price', type=float, help='Stock price (e.g., 182.34)')
+    parser.add_argument('sector', type=str, help='Industry sector (e.g., tech, healthcare)')
+    
+    args = parser.parse_args()
 
-    sys.exit(main(ticker,price,sector))
+    sys.exit(main(args.ticker, args.price, args.sector))

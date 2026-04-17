@@ -15,8 +15,13 @@
 # limitations under the License.
 
 import os
+import sys
+from pathlib import Path
 
 import pika
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from consumer_interface import mqConsumerInterface
 
 
@@ -24,62 +29,92 @@ class mqConsumer(mqConsumerInterface):
     def __init__(
         self, binding_key: str, exchange_name: str, queue_name: str
     ) -> None:
+        """
+        Initialize the consumer with binding key, exchange name, and queue name for topic exchange.
+        
+        Args:
+            binding_key: The topic binding pattern (e.g., stock.*.tech)
+            exchange_name: The name of the topic exchange to bind to
+            queue_name: The name of the queue to create and bind
+        """
         # Save parameters to class variables
-        self.m_binding_key = binding_key
-        self.m_queue_name = queue_name
-        self.m_exchange_name = exchange_name
+        self.binding_key = binding_key
+        self.queue_name = queue_name
+        self.exchange_name = exchange_name
+        self.connection = None
+        self.channel = None
+        
         # Call setupRMQConnection
         self.setupRMQConnection()
 
     def setupRMQConnection(self) -> None:
+        """
+        Set up connection to RabbitMQ service.
+        Establishes channel, creates topic exchange, queue, and binding.
+        """
         # Set-up Connection to RabbitMQ service
-        con_params = pika.URLParameters(
-            os.environ.get("AMQP_URL", "amqp://guest:guest@localhost:5672/")
-        )
-        self.m_connection = pika.BlockingConnection(parameters=con_params)
+        con_params = pika.URLParameters(os.environ["AMQP_URL"])
+        self.connection = pika.BlockingConnection(parameters=con_params)
 
         # Establish Channel
-        self.m_channel = self.m_connection.channel()
+        self.channel = self.connection.channel()
+
+        # Create the topic exchange if not already present
+        self.channel.exchange_declare(
+            exchange=self.exchange_name, 
+            exchange_type="topic", 
+            durable=False
+        )
 
         # Create Queue if not already present
-        self.m_channel.queue_declare(queue=self.m_queue_name)
+        self.channel.queue_declare(queue=self.queue_name, durable=False)
 
-        # Create the exchange if not already present
-        self.m_channel.exchange_declare(self.m_exchange_name, exchange_type="topic")
-
-        # Bind Binding Key to Queue on the exchange
-        self.m_channel.queue_bind(
-            queue=self.m_queue_name,
-            routing_key=self.m_binding_key,
-            exchange=self.m_exchange_name,
+        # Bind Binding Key to Queue on the exchange with topic pattern
+        self.channel.queue_bind(
+            queue=self.queue_name,
+            routing_key=self.binding_key,
+            exchange=self.exchange_name,
         )
 
         # Set-up Callback function for receiving messages
-        self.m_channel.basic_consume(
-            self.m_queue_name, self.on_message_callback, auto_ack=False
+        self.channel.basic_consume(
+            self.queue_name, self.on_message_callback, auto_ack=False
         )
 
     def on_message_callback(
         self, channel, method_frame, header_frame, body
     ) -> None:
+        """
+        Handle incoming messages from the queue.
+        
+        Args:
+            channel: The channel on which the message arrived
+            method_frame: Frame containing delivery information
+            header_frame: Frame containing headers
+            body: The message body
+        """
         # Acknowledge Message 
         channel.basic_ack(method_frame.delivery_tag, False)
 
-        # Print Message
-        print(f" [x] Received Message: {body}")
+        # Decode and print message
+        message = body.decode('utf-8')
+        routing_key = method_frame.routing_key
+        print(f"[Consumer] Received message on routing key '{routing_key}': {message}")
 
        
     def startConsuming(self) -> None:
-        
-        # Print " [*] Waiting for messages. To exit press CTRL+C"
-        print(" [*] Waiting for messages. To exit press CTRL+C")
+        """
+        Start consuming messages from the queue.
+        """
+        # Print waiting message with binding key pattern
+        print(f" [*] Waiting for messages with pattern '{self.binding_key}'. To exit press CTRL+C")
 
         # Start consuming messages
-        self.m_channel.start_consuming()
+        self.channel.start_consuming()
 
     def __del__(self) -> None:
-        print("Closing RMQ connection on destruction")
-        if hasattr(self, 'm_channel') and self.m_channel:
-            self.m_channel.close()
-        if hasattr(self, 'm_connection') and self.m_connection:
-            self.m_connection.close()
+        """Clean up connection on deletion."""
+        if hasattr(self, 'channel') and self.channel:
+            self.channel.close()
+        if hasattr(self, 'connection') and self.connection:
+            self.connection.close()

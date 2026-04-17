@@ -19,11 +19,15 @@ from solution.consumer_sol import mqConsumer  # pylint: disable=import-error
 
 def main(sector: str, queueName: str) -> None:
     
-    # Implement Logic to Create Binding Key from the sector variable -  Step 2
-    bindingKey = f"*.*.{sector}"
-    bindingKey.strip()
+    # Create Binding Key from the sector variable - Step 2
+    # Format: stock.*.SECTOR matches all messages for that sector
+    binding_key = f"stock.*.{sector}"
     
-    consumer = mqConsumer(binding_key=bindingKey,exchange_name="Tech Lab Topic Exchange",queue_name=queueName)    
+    consumer = mqConsumer(
+        binding_key=binding_key,
+        exchange_name="Tech Lab Topic Exchange",
+        queue_name=queueName
+    )    
     consumer.startConsuming()
     
 
